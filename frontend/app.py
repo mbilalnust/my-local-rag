@@ -26,6 +26,7 @@ from src.database.vector_store import VectorStore
 from src.retrieval.retriever import DocumentRetriever
 from src.chains.rag_chain import RAGChain
 
+
 # Setup logging
 logger = setup_logging()
 
