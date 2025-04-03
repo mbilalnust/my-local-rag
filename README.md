@@ -2,7 +2,7 @@
 
 A modular Retrieval-Augmented Generation (RAG) application that uses local models through Ollama for document question-answering.
 
-![RAG Application Architecture]([images/pic.png](https://github.com/mbilalnust/my-local-rag))
+![RAG Application Architecture]([src/utils/pic.png](https://github.com/mbilalnust/my-local-rag))
 
 ## Features
 
