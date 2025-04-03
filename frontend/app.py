@@ -29,87 +29,115 @@ from src.chains.rag_chain import RAGChain
 # Setup logging
 logger = setup_logging()
 
-def handle_pdf_uploads():
-    """Handle multiple PDF file uploads and return the paths to the PDFs.
-    
-    Returns:
-        list: List of paths to the uploaded PDF files
-    """
-    st.write("### Upload Your Documents")
-    st.write("Upload one or more PDF documents to ask questions about.")
-    
-    uploaded_files = st.file_uploader(
-        "Choose PDF files",
-        type=['pdf'],
-        accept_multiple_files=True,
-        help="You can select multiple PDF files by holding Ctrl/Cmd while selecting"
+# Define available workspaces
+WORKSPACES = {
+    "Marketing": "marketing",
+    "Taxation": "taxation",
+    "Product": "product",
+    "Data Team": "data_team"
+}
+
+def initialize_session_state():
+    """Initialize session state variables."""
+    if 'messages' not in st.session_state:
+        st.session_state.messages = []
+    if 'chain' not in st.session_state:
+        st.session_state.chain = None
+    if 'current_workspace' not in st.session_state:
+        st.session_state.current_workspace = None
+    if 'uploaded_files' not in st.session_state:
+        st.session_state.uploaded_files = []
+    if 'selected_model' not in st.session_state:
+        st.session_state.selected_model = DEFAULT_MODEL
+
+def select_workspace():
+    """Let user select the workspace."""
+    return st.sidebar.selectbox(
+        "Select Workspace",
+        options=list(WORKSPACES.keys()),
+        key="workspace_selector"
     )
-    
-    if not uploaded_files:
-        st.warning("⚠️ Please upload at least one PDF document to continue.")
-        return None
-        
-    pdf_paths = []
-    for uploaded_file in uploaded_files:
-        # Save uploaded file
-        save_path = os.path.join(UPLOAD_DIR, uploaded_file.name)
-        with open(save_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        pdf_paths.append(save_path)
-        st.success(f"✅ File uploaded successfully: {uploaded_file.name}")
-    
-    return pdf_paths
 
 def select_model():
-    """Let user select the model to use.
-    
-    Returns:
-        str: Selected model name
-    """
-    st.write("### Model Selection")
-    selected_model = st.selectbox(
-        "Choose an LLM model:",
+    """Let user select the model to use."""
+    return st.sidebar.selectbox(
+        "Select Model",
         options=list(AVAILABLE_MODELS.keys()),
         index=list(AVAILABLE_MODELS.values()).index(DEFAULT_MODEL),
-        help="Select the AI model you want to use for answering questions."
+        key="model_selector"
     )
-    return AVAILABLE_MODELS[selected_model]
 
-@st.cache_resource
-def initialize_rag_components(_pdf_paths, model_name):
-    """Initialize all RAG components.
+def handle_file_upload():
+    """Handle file uploads (PDF and URL)."""
+    st.sidebar.markdown("### Add Documents 📄")
     
-    Args:
-        _pdf_paths (list): List of paths to the PDF documents
-        model_name (str): Name of the LLM model to use
+    # Create tabs for PDF and URL upload
+    pdf_tab, url_tab = st.sidebar.tabs(["PDF", "URL"])
     
-    Returns:
-        tuple: (llm, chain) or (None, None) if initialization fails
-    """
+    with pdf_tab:
+        uploaded_files = st.file_uploader(
+            "Upload PDF files",
+            type=['pdf'],
+            accept_multiple_files=True,
+            help="Upload PDF files (limit 200MB per file)",
+            key="pdf_uploader"
+        )
+        
+        if uploaded_files:
+            for uploaded_file in uploaded_files:
+                if uploaded_file.name not in [f.name for f in st.session_state.uploaded_files]:
+                    save_path = os.path.join(UPLOAD_DIR, uploaded_file.name)
+                    with open(save_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    st.session_state.uploaded_files.append(uploaded_file)
+                    st.success(f"✅ File uploaded: {uploaded_file.name}")
+    
+    with url_tab:
+        url = st.text_input(
+            "Add URL",
+            placeholder="https://example.com",
+            help="Enter a URL to add to your knowledge base"
+        )
+        if st.button("Add URL", key="add_url"):
+            if url:
+                st.success(f"✅ URL added: {url}")
+                return url
+    return None
+
+def clear_knowledge_base():
+    """Clear the knowledge base."""
+    if st.sidebar.button("Clear Knowledge Base"):
+        try:
+            import shutil
+            if os.path.exists(PERSIST_DIRECTORY):
+                shutil.rmtree(PERSIST_DIRECTORY)
+                st.success("✨ Knowledge base cleared!")
+                st.session_state.chain = None
+                st.session_state.messages = []
+                st.session_state.uploaded_files = []
+                st.rerun()
+        except Exception as e:
+            st.error(f"Error clearing knowledge base: {str(e)}")
+
+def initialize_rag_components(pdf_path, model_name):
+    """Initialize RAG components."""
     try:
         # Initialize language model
         llm = ChatOllama(model=model_name)
         
-        # Load and process all documents
-        all_documents = []
+        # Load and process document
         loader = DocumentLoader()
-        for pdf_path in _pdf_paths:
-            documents = loader.load_pdf(pdf_path)
-            if documents is None:
-                st.error(f"Failed to load PDF document: {os.path.basename(pdf_path)}")
-                continue
-            all_documents.extend(documents)
-        
-        if not all_documents:
-            st.error("No documents were successfully loaded.")
-            return None, None
+        documents = loader.load_pdf(pdf_path)
+        if documents is None:
+            st.error(f"Failed to load PDF document")
+            return None
             
         # Split documents
         splitter = DocumentSplitter()
-        chunks = splitter.split_documents(all_documents)
+        chunks = splitter.split_documents(documents)
         if chunks is None:
-            st.error("Failed to split the documents.")
-            return None, None
+            st.error("Failed to split the document")
+            return None
             
         # Initialize vector store
         vector_store = VectorStore()
@@ -121,85 +149,102 @@ def initialize_rag_components(_pdf_paths, model_name):
         
         # Create RAG chain
         chain = RAGChain(retriever, llm)
-        
-        return llm, chain
+        return chain
         
     except Exception as e:
-        logger.error(f"Error initializing RAG components: {str(e)}")
-        st.error(f"An error occurred during initialization: {str(e)}")
-        return None, None
+        st.error(f"Error initializing components: {str(e)}")
+        return None
+
+def display_chat_messages():
+    """Display chat messages."""
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+def handle_user_input():
+    """Handle user input in chat."""
+    if prompt := st.chat_input("Ask a question about your documents..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            if st.session_state.chain:
+                try:
+                    response = st.session_state.chain.run(prompt)
+                    st.session_state.messages.append({"role": "assistant", "content": response})
+                    st.markdown(response)
+                except Exception as e:
+                    error_msg = f"Error generating response: {str(e)}"
+                    st.error(error_msg)
+                    st.session_state.messages.append({"role": "assistant", "content": error_msg})
+            else:
+                st.warning("Please upload a document first.")
 
 def main():
     """Main application function."""
     st.set_page_config(
-        page_title="Document Assistant",
-        page_icon="📚",
-        layout="wide"
+        page_title="Local RAG",
+        page_icon="🤖",
+        layout="wide",
+        initial_sidebar_state="expanded"
     )
-    
-    st.title("📚 Document Assistant")
-    st.write("Ask questions about your PDF documents using AI.")
-    
-    # Create two columns for layout
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        # Handle PDF uploads
-        pdf_paths = handle_pdf_uploads()
-        if pdf_paths is None:
-            return
-            
-    with col2:
-        # Model selection
-        model_name = select_model()
+
+    # Set dark theme
+    st.markdown("""
+        <style>
+        .stApp {
+            background-color: #0E1117;
+            color: white;
+        }
+        .stSidebar {
+            background-color: #262730;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # Initialize session state
+    initialize_session_state()
+
+    # Sidebar
+    with st.sidebar:
+        st.title("Local RAG")
         
-        # Add a button to clear the vector store
-        st.write("### Actions")
-        if st.button("🗑️ Clear Vector Store"):
-            try:
-                import shutil
-                if os.path.exists(PERSIST_DIRECTORY):
-                    shutil.rmtree(PERSIST_DIRECTORY)
-                    st.success("✨ Vector store cleared successfully!")
-                    st.experimental_rerun()
-            except Exception as e:
-                st.error(f"Error clearing vector store: {str(e)}")
-    
-    # Add a separator
-    st.divider()
-    
-    # Initialize components
-    with st.spinner("🔄 Initializing AI components..."):
-        llm, chain = initialize_rag_components(pdf_paths, model_name)
-        if llm is None or chain is None:
-            st.error("Failed to initialize the application components.")
-            return
-    
-    # Question and Answer section
-    st.write("### Ask Questions")
-    st.write("Enter your question about the documents below:")
-    
-    # User input with a more descriptive placeholder
-    user_input = st.text_input(
-        "Your question:",
-        placeholder="e.g., What are the main topics discussed in these documents?",
-        key="question_input"
-    )
-    
-    if user_input:
-        with st.spinner("🤔 Thinking..."):
-            try:
-                # Get response from chain
-                response = chain.run(user_input)
-                
-                # Display answer
-                st.write("### Answer:")
-                st.write(response)
-                
-            except Exception as e:
-                st.error(f"❌ An error occurred: {str(e)}")
-    else:
-        st.info("👋 Please enter a question about your documents to get started.")
+        # Workspace selection
+        selected_workspace = select_workspace()
+        st.session_state.current_workspace = WORKSPACES[selected_workspace]
+        
+        # Model selection
+        selected_model = select_model()
+        st.session_state.selected_model = AVAILABLE_MODELS[selected_model]
+        
+        # Clear knowledge base option
+        clear_knowledge_base()
+        
+        # File upload section
+        url = handle_file_upload()
+        
+        # Display uploaded files
+        if st.session_state.uploaded_files:
+            st.sidebar.markdown("### Uploaded Files")
+            for file in st.session_state.uploaded_files:
+                st.sidebar.text(f"📄 {file.name}")
+
+    # Main chat interface
+    if (st.session_state.uploaded_files or url) and not st.session_state.chain:
+        with st.spinner("🔄 Processing documents..."):
+            # Process all uploaded files
+            for file in st.session_state.uploaded_files:
+                pdf_path = os.path.join(UPLOAD_DIR, file.name)
+                chain = initialize_rag_components(pdf_path, st.session_state.selected_model)
+                if chain:
+                    st.session_state.chain = chain
+                    st.rerun()
+                    break
+
+    # Display chat interface
+    display_chat_messages()
+    handle_user_input()
 
 if __name__ == "__main__":
     main() 
