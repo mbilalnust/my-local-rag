@@ -31,23 +31,31 @@ class VectorStore:
         Returns:
             Chroma: Vector store instance
         """
-        # If store exists, load it
-        if os.path.exists(PERSIST_DIRECTORY):
-            return Chroma(
-                embedding_function=self.embedding,
-                collection_name=VECTOR_STORE_NAME,
-                persist_directory=PERSIST_DIRECTORY,
-            )
-        
-        # Create new store if documents provided
-        if documents:
-            store = Chroma.from_documents(
-                documents=documents,
-                embedding=self.embedding,
-                collection_name=VECTOR_STORE_NAME,
-                persist_directory=PERSIST_DIRECTORY,
-            )
-            store.persist()
-            return store
+        try:
+            # Create new store if documents provided
+            if documents:
+                store = Chroma.from_documents(
+                    documents=documents,
+                    embedding=self.embedding,
+                    collection_name=VECTOR_STORE_NAME,
+                    persist_directory=PERSIST_DIRECTORY,
+                )
+                store.persist()
+                logger.info("New vector store created successfully.")
+                return store
+                
+            # If store exists, load it
+            if os.path.exists(PERSIST_DIRECTORY):
+                store = Chroma(
+                    embedding_function=self.embedding,
+                    collection_name=VECTOR_STORE_NAME,
+                    persist_directory=PERSIST_DIRECTORY,
+                )
+                logger.info("Existing vector store loaded successfully.")
+                return store
+                
+            raise ValueError("No existing store found and no documents provided to create one.")
             
-        raise ValueError("No existing store found and no documents provided to create one.") 
+        except Exception as e:
+            logger.error(f"Error in vector store operations: {str(e)}")
+            raise 
