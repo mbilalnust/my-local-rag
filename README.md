@@ -2,7 +2,7 @@
 
 A modular Retrieval-Augmented Generation (RAG) application that uses local models through Ollama for document question-answering.
 
-![RAG Application Architecture](src/utils/rag-architecture.png)
+![RAG Application Architecture](src/utils/Screenshot%202025-04-03%20at%203.33.09%20PM.png)
 
 ## Features
 
