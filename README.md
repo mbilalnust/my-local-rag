@@ -4,6 +4,9 @@ A modular Retrieval-Augmented Generation (RAG) application that uses local model
 
 ![RAG Application Architecture](https://github.com/mbilalnust/my-local-rag/blob/main/src/utils/pic.png)
 
+## Output
+![RAG APPLICATION output](https://github.com/mbilalnust/my-local-rag/blob/main/src/utils/rag_output.png)
+
 ## Features
 
 - PDF document processing and chunking
