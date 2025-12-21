@@ -1,12 +1,9 @@
-"""Logging configuration for the application."""
-
 import logging
 
-def setup_logging():
-    """Configure logging for the application."""
+
+def setup_logging(level: int = logging.INFO) -> logging.Logger:
     logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        level=level,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
-    return logging.getLogger(__name__) 
+    return logging.getLogger("my_local_rag")

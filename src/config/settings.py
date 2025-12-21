@@ -1,11 +1,16 @@
 """Configuration settings for the RAG application."""
 
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Path configurations
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
-PERSIST_DIRECTORY = os.path.join(BASE_DIR, "chroma_db")
+BASE_DIR = Path(__file__).resolve().parents[2]
+UPLOAD_DIR = BASE_DIR / "uploads"
+PERSIST_DIRECTORY = BASE_DIR / "chroma_db"
 
 # Model configurations
 AVAILABLE_MODELS = {
@@ -17,11 +22,12 @@ AVAILABLE_MODELS = {
 }
 DEFAULT_MODEL = "llama3.2"
 EMBEDDING_MODEL = "nomic-embed-text"
-VECTOR_STORE_NAME = "simple-rag"
+VECTOR_STORE_NAME = os.getenv("VECTOR_STORE_NAME", "simple-rag")
 
 # Document splitting configurations
-CHUNK_SIZE = 1200
-CHUNK_OVERLAP = 300
+CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", 1200))
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", 300))
 
 # Ensure upload directory exists
-os.makedirs(UPLOAD_DIR, exist_ok=True) 
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+PERSIST_DIRECTORY.mkdir(parents=True, exist_ok=True)
