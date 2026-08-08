@@ -1,9 +1,23 @@
 __pycache__/
 *.py[cod]
 .env
+.env.*
+!.env.example
 .venv
 .DS_Store
 .pytest_cache/
 chroma_db/
 uploads/
 artifacts/
+
+# Credentials — never commit these
+*.pem
+*.p12
+*.pfx
+*.key
+credentials
+.netrc
+.aws/
+serviceAccount*.json
+secrets.yaml
+secrets.yml
